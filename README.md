@@ -94,8 +94,40 @@ positive integers. Levels accept `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
 and `NOTSET`. Boolean CLI options use `--Logging.file.enabled` to enable and
 `--no-Logging.console.enabled` to disable. Other options accept values, such as
 `--Logging.file.level DEBUG`. These are configuration contracts only: loading
-configuration does not create handlers, directories, or log files. Handler
-initialization and application integration remain follow-up work.
+configuration does not create handlers, directories, or log files.
+
+## Global logger
+
+`src/logger.py` provides the process-local `Logger` singleton. Load configuration
+before the first `Logger()` or logging call: initialization is lazy and captures
+`GlobalConfig().Logging` once. Importing the module has no logging side effects.
+
+```python
+from global_config import global_config
+from logger import Logger
+
+global_config.update_from_toml("config/default_config.toml")
+global_config.update_from_cli()
+Logger.INFO("Starting %s", "Daybreak")
+Logger.DEBUG("Diagnostic details")
+Logger.ERROR("Operation failed")
+# Inside an exception handler: Logger.ERROR("Operation failed", exc_info=True)
+# At shutdown, after callers have stopped logging:
+Logger.close()
+```
+
+The shared level and each handler level both filter records. Console output goes
+to stderr; optional UTF-8 file output creates parent directories and rotates
+according to `max_bytes` and `backup_count`. Records include time, level, logger
+name, and message. Standard logging arguments such as `exc_info`, `extra`, and
+`stacklevel` are supported. No records propagate to the root logger. Disabling
+both outputs is silent, including for errors. `NOTSET` on the shared logger
+imposes no level filter. Repeated access does not duplicate handlers.
+
+`Logger.close()` is idempotent and releases file handles. The next call creates
+the singleton again using current configuration. Configuration updates alone do
+not alter an initialized logger. Stop logging before closing or reinitializing.
+Callers are responsible for excluding credentials and personal data from messages.
 
 Communicate with the user in Chinese. All tracked file content, code comments, and Git commit messages must be in English.
 

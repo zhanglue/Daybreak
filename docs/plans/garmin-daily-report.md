@@ -143,9 +143,8 @@ Acceptance: following the README produces a daily report for a selected date; fi
   console enabled, file disabled, and 10 MiB rotation with three backups.
 - [x] Support nested logging defaults, typed validation, and boolean CLI switches.
 
-Follow-up: initialize one application logger with stderr console output and an
-optional rotating file handler. Configuration loading currently has no logging
-side effects.
+The application logger increment below implements handler initialization.
+Configuration loading itself continues to have no logging side effects.
 
 Acceptance: one instance is available immediately after import, layered values
 follow defaults < TOML < CLI, and nested configuration is accessible through
@@ -156,6 +155,34 @@ replaces its source layer. Startup configuration is single-threaded.
 Verification: all 28 tests pass in the existing `daybreak` Conda environment,
 including seven configuration tests and default TOML/schema alignment. Tests use synthetic TOML files;
 no credentials, personal data, or live network calls are involved.
+
+## User-selected increment: global logger
+
+- [x] Add a lazily initialized, thread-safe `Logger` singleton reading
+  `GlobalConfig().Logging` at first use.
+- [x] Expose `Logger.INFO`, `Logger.DEBUG`, and `Logger.ERROR`, supporting standard
+  logging formatting and exception arguments.
+- [x] Implement independent stderr and rotating UTF-8 file handlers with shared
+  and per-handler level filters and no root propagation.
+- [x] Provide idempotent shutdown and reinitialization using current settings.
+- [x] Verify singleton initialization, filtering, silent disabled outputs,
+  exception output, file rotation, and resource cleanup using synthetic data.
+- [x] Document startup order, output behavior, and lifecycle.
+
+Acceptance: direct class-level calls share one initialized logger, honor the
+existing logging configuration, preserve stdout for MCP, and close owned handlers.
+Configuration is captured once; shutdown requires callers to stop logging first.
+
+Verification: all 33 tests pass in the existing `daybreak` Conda environment,
+including five logger tests. No live network, credentials, or personal data were
+accessed. Application startup integration remains pending its implementation.
+
+The task branch starts from the current configuration commit rather than `main`
+because the required configuration implementation is not yet on `main`; existing
+uncommitted HTTP framework and documentation changes were preserved.
+
+Suggested next step: review the logger interface and lifecycle before selecting
+further work; Garmin integration remains outside this increment.
 
 ## Open decisions
 

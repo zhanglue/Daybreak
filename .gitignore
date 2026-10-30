@@ -1,0 +1,13 @@
+# Local credentials
+.env
+.env.*
+!.env.example
+API_KEY.txt
+
+# Local data and generated reports
+/data/
+/reports/
+/logs/
+
+# Local development files
+.DS_Store

@@ -1,0 +1,23 @@
+[Logging]
+level = "INFO"
+
+# Console output is intended for stderr to preserve MCP stdout.
+[Logging.console]
+enabled = true
+level = "INFO"
+
+[Logging.file]
+enabled = false
+level = "INFO"
+path = "logs/daybreak.log"
+max_bytes = 10485760
+backup_count = 3
+
+[GeneralHttpClient]
+timeout = 5.0
+max_connections = 100
+max_keepalive_connections = 20
+keepalive_expiry = 5.0
+
+[GarminConnectClient]
+pool_size = 10

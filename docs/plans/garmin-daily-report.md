@@ -128,6 +128,35 @@ Dependency: milestone 5. Suggested branch: `feat/daily-report`.
 
 Acceptance: following the README produces a daily report for a selected date; findings can be traced to the supplied data; incomplete input and execution failures are visible; personal outputs remain outside Git; a scheduled run also completes in the target environment or exposes a clear actionable failure.
 
+## User-selected increment: global configuration
+
+- [x] Add `src/global_config.py` with an import-time singleton and nested data classes.
+- [x] Support explicit standard-library TOML loading and explicit dotted CLI options.
+- [x] Preserve defaults for omitted TOML fields and TOML values for omitted CLI options.
+- [x] Keep CLI precedence independent of update order and reject invalid updates atomically.
+- [x] Document startup usage and verify with synthetic configuration tests.
+- [x] Add `config/default_config.toml` matching the `GeneralHttpClient` and
+  `GarminConnectClient` root data classes, including Garmin `pool_size=10`.
+- [x] Migrate application configuration from YAML to standard-library `tomllib`
+  and remove the direct PyYAML dependency; keep the Conda environment YAML file.
+- [x] Add `Logging` first in the TOML file with shared and handler levels,
+  console enabled, file disabled, and 10 MiB rotation with three backups.
+- [x] Support nested logging defaults, typed validation, and boolean CLI switches.
+
+Follow-up: initialize one application logger with stderr console output and an
+optional rotating file handler. Configuration loading currently has no logging
+side effects.
+
+Acceptance: one instance is available immediately after import, layered values
+follow defaults < TOML < CLI, and nested configuration is accessible through
+data-class attributes. The initial schema covers existing HTTP connection settings;
+HTTP client wiring and Garmin settings remain separate work. Each explicit update
+replaces its source layer. Startup configuration is single-threaded.
+
+Verification: all 28 tests pass in the existing `daybreak` Conda environment,
+including seven configuration tests and default TOML/schema alignment. Tests use synthetic TOML files;
+no credentials, personal data, or live network calls are involved.
+
 ## Open decisions
 
 Resolve each decision before its implementation depends on it:

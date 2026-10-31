@@ -1,7 +1,6 @@
 [Logging]
 level = "INFO"
 
-# Console output is intended for stderr to preserve MCP stdout.
 [Logging.console]
 enabled = true
 level = "INFO"
@@ -20,4 +19,10 @@ max_keepalive_connections = 20
 keepalive_expiry = 5.0
 
 [GarminConnectClient]
-pool_size = 10
+api_key_string = ""
+api_key_file = "config/API_KEY.txt"
+http_client_pool_size = 10
+base_url = "https://personal.connectapi.garmin.com"
+timeout = 5.0
+max_keepalive_connections = 10
+keepalive_expiry = 5.0

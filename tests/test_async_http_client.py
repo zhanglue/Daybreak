@@ -286,8 +286,20 @@ class AsyncHttpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as raised:
                 AsyncHttpClientsManager.create_client(AsyncHttpClientConfig())
         self.assertIs(raised.exception, original)
-        self.error_log.assert_called_once_with("HTTP client creation failed.")
+        self.error_log.assert_called_once_with("HTTP client creation failed; error_type=%s.", "ValueError")
         self.assertEqual(AsyncHttpClientsManager()._pools, {})
+
+    async def test_missing_transport_dependency_has_safe_install_hint(self):
+        original = ImportError("synthetic-secret")
+        with patch("async_http_client.httpx.AsyncClient", side_effect=original):
+            with self.assertRaises(ImportError) as raised:
+                AsyncHttpClient(AsyncHttpClientConfig())
+        self.assertIs(raised.exception, original)
+        self.error_log.assert_called_once_with(
+            "HTTP client creation failed; error_type=%s; "
+            "a transport dependency is missing. Install config/requirements.txt.",
+            "ImportError",
+        )
 
     async def test_unexpected_request_failure_logs_and_preserves_exception(self):
         original = ValueError("synthetic-secret")

@@ -20,6 +20,9 @@
 - Codex must obtain Garmin data through Daybreak MCP tools, never through direct Garmin requests or access to Garmin credentials.
 - Skills define tool-use and analysis workflows; the MCP server owns Garmin access and data responses. A separate manual or scheduled runner starts Codex; the MCP server must not recursively launch Codex.
 - Use `httpx` for the general-purpose asynchronous HTTP client. Keep Garmin authentication and endpoint behavior outside the generic transport layer.
+- Before explicitly raising an exception, log the error with the shared `Logger.ERROR`. Keep error logs free of credentials and personal data.
+- Within classes, declare attributes first, then public class/static methods, public instance methods and properties, special methods (such as `__new__` and `__init__`), and finally underscore-prefixed internal methods, including internal class/static methods.
+- Call class/static methods through the explicit class name (for example, `GarminConnectClient.get_client()`), not through `self`. Use `cls` inside class methods when subclass dispatch is intended.
 - Use a local Codex command with predefined Skills and the Daybreak MCP connection. Verify the installed CLI, Skills discovery, MCP configuration, and unattended behavior before implementing invocation.
 - Record additional requirements as follow-up work. Discuss material scope or architecture changes before implementing them.
 - Keep these instructions concise; store task progress in the implementation plan.

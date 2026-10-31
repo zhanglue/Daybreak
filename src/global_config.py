@@ -22,9 +22,16 @@ class HttpConfig:
 
 @dataclass(frozen=True)
 class GarminConnectClientConfig:
-    """Garmin client pool settings."""
+    """Garmin credentials and HTTP pool settings."""
 
-    pool_size: int = 10
+    api_key_string: str = field(default="", repr=False)
+    api_key_file: str = "config/API_KEY.txt"
+    http_client_pool_size: int = 10
+    http_client_name: str = "GarminConnect"
+    base_url: str = "https://personal.connectapi.garmin.com"
+    timeout: float = 5.0
+    max_keepalive_connections: int = 10
+    keepalive_expiry: float = 5.0
 
 
 @dataclass(frozen=True)
@@ -87,7 +94,7 @@ def _merge(data, updates: Mapping, prefix: str = ""):
                 raise TypeError(f"{path} must be {expected.__name__}.")
             if expected in (int, float) and (
                 not math.isfinite(value) or value < 0
-                or (key in ("max_connections", "max_bytes", "backup_count") and value == 0)
+                or (key in ("max_connections", "max_bytes", "backup_count", "http_client_pool_size") and value == 0)
             ):
                 raise ValueError(f"Invalid value for {path}.")
             if key == "level" and value not in {
@@ -96,6 +103,10 @@ def _merge(data, updates: Mapping, prefix: str = ""):
                 raise ValueError(f"Invalid logging level for {path}.")
             if key == "path" and not value.strip():
                 raise ValueError(f"{path} must not be empty.")
+            if key == "api_key_file" and value:
+                key_path = Path(value)
+                if key_path.is_absolute() or ".." in key_path.parts:
+                    raise ValueError(f"{path} must be a repository-relative path without '..'.")
             result[key] = expected(value)
     return replace(data, **result)
 

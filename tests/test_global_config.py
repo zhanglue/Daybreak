@@ -33,10 +33,28 @@ class GlobalConfigTests(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / "config/default_config.toml"
         defaults = tomllib.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(set(defaults), {"Logging", "GeneralHttpClient", "GarminConnectClient"})
-        self.assertEqual(defaults, asdict(ConfigData()))
+        expected = asdict(ConfigData())
+        self.assertEqual(expected["GarminConnectClient"].pop("http_client_name"), "GarminConnect")
+        self.assertEqual(defaults, expected)
         global_config.update_from_toml(path)
         self.assertEqual(global_config._data, ConfigData())
-        self.assertEqual(global_config.GarminConnectClient.pool_size, 10)
+        self.assertEqual(global_config.GarminConnectClient.http_client_pool_size, 10)
+
+    def test_garmin_configuration_validation(self):
+        self.load('[GarminConnectClient]\napi_key_string = "synthetic-key"\napi_key_file = "API_KEY.txt"\n')
+        self.assertNotIn("synthetic-key", repr(global_config._data))
+        global_config.update_from_cli(["--GarminConnectClient.http-client-pool-size", "4"])
+        self.assertEqual(global_config.GarminConnectClient.http_client_pool_size, 4)
+        for content in [
+            'http_client_pool_size = 0',
+            'http_client_pool_size = -1',
+            'api_key_file = "/tmp/key"',
+            'api_key_file = "../key"',
+        ]:
+            snapshot = global_config._data
+            with self.subTest(content=content), self.assertRaises(ValueError):
+                self.load("[GarminConnectClient]\n" + content)
+            self.assertIs(global_config._data, snapshot)
 
     def test_import_creates_singleton_without_parsing_arguments(self):
         subprocess.run([sys.executable, "-c",

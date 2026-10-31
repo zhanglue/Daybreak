@@ -5,6 +5,7 @@
 API_KEY.txt
 
 # Local data and generated reports
+/garmin_data/
 /data/
 /reports/
 /logs/

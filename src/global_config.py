@@ -2,22 +2,61 @@
 
 import argparse
 import math
+from ipaddress import ip_address
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from typing import ClassVar
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import tomllib
 
 
 @dataclass(frozen=True)
-class HttpConfig:
-    """Default HTTP transport settings; no clients are created here."""
+class MCPServerConfig:
+    """Local MCP data source, storage, and freshness settings."""
 
-    timeout: float = 5.0
-    max_connections: int = 100
-    max_keepalive_connections: int = 20
-    keepalive_expiry: float = 5.0
+    transport: str = "http"
+    host: str = "127.0.0.1"
+    port: int = 15666
+    path: str = "/mcp"
+    data_source: str = "garmin_connect"
+    data_directory: str = "garmin_data"
+    timezone_name: str = "UTC"
+    recent_days: int = 7
+    recent_ttl_seconds: int = 3600
+    profile_ttl_seconds: int = 86400
+
+    def __post_init__(self):
+        message = None
+        if self.transport not in ('http', 'stdio'):
+            message = "MCPServer.transport must be http or stdio."
+        elif not 1 <= self.port <= 65535:
+            message = "MCPServer.port must be between 1 and 65535."
+        elif (not self.path.startswith('/') or self.path == '/' or
+              any(part in ('.', '..', '') for part in self.path[1:].split('/')) or
+              any(character in self.path for character in ('?', '#', '%', '\\')) or
+              any(character.isspace() for character in self.path)):
+            message = "MCPServer.path must be an absolute HTTP path without query or traversal."
+        elif self.host != 'localhost':
+            try:
+                if not ip_address(self.host).is_loopback:
+                    message = "MCPServer.host must be a loopback address or localhost."
+            except ValueError:
+                message = "MCPServer.host must be a loopback address or localhost."
+        if message is None and (self.recent_days < 0 or min(self.recent_ttl_seconds, self.profile_ttl_seconds) <= 0):
+            message = "Invalid MCPServer freshness settings."
+        elif message is None and not self.data_directory.strip():
+            message = "MCPServer.data_directory must not be empty."
+        elif message is None:
+            try:
+                ZoneInfo(self.timezone_name)
+            except (ZoneInfoNotFoundError, ValueError):
+                message = "MCPServer.timezone_name must be a valid IANA timezone."
+        if message is not None:
+            from logger import Logger
+            Logger.ERROR(message)
+            raise ValueError(message)
 
 
 @dataclass(frozen=True)
@@ -31,6 +70,16 @@ class GarminConnectClientConfig:
     base_url: str = "https://personal.connectapi.garmin.com"
     timeout: float = 5.0
     max_keepalive_connections: int = 10
+    keepalive_expiry: float = 5.0
+
+
+@dataclass(frozen=True)
+class HttpConfig:
+    """Default HTTP transport settings; no clients are created here."""
+
+    timeout: float = 5.0
+    max_connections: int = 100
+    max_keepalive_connections: int = 20
     keepalive_expiry: float = 5.0
 
 
@@ -66,11 +115,12 @@ class LoggingConfig:
 class ConfigData:
     """Hierarchical application configuration schema."""
 
-    Logging: LoggingConfig = field(default_factory=LoggingConfig)
-    GeneralHttpClient: HttpConfig = field(default_factory=HttpConfig)
+    MCPServer: MCPServerConfig = field(default_factory=MCPServerConfig)
     GarminConnectClient: GarminConnectClientConfig = field(
         default_factory=GarminConnectClientConfig
     )
+    GeneralHttpClient: HttpConfig = field(default_factory=HttpConfig)
+    Logging: LoggingConfig = field(default_factory=LoggingConfig)
 
 
 def _merge(data, updates: Mapping, prefix: str = ""):
@@ -131,16 +181,34 @@ class GlobalConfig:
         return cls._instance
 
     @property
-    def Logging(self) -> LoggingConfig:
-        return self._data.Logging
+    def MCPServer(self) -> MCPServerConfig:
+        return self._data.MCPServer
+
+    @property
+    def GarminConnectClient(self) -> GarminConnectClientConfig:
+        return self._data.GarminConnectClient
 
     @property
     def GeneralHttpClient(self) -> HttpConfig:
         return self._data.GeneralHttpClient
 
     @property
-    def GarminConnectClient(self) -> GarminConnectClientConfig:
-        return self._data.GarminConnectClient
+    def Logging(self) -> LoggingConfig:
+        return self._data.Logging
+
+    def to_display_dict(self) -> dict:
+        """Return all effective settings in schema order, masking hidden fields."""
+        def display(data):
+            return {
+                item.name: (
+                    "********" if not item.repr else
+                    display(getattr(data, item.name)) if is_dataclass(getattr(data, item.name)) else
+                    getattr(data, item.name)
+                )
+                for item in fields(data)
+            }
+
+        return display(self._data)
 
     def update_from_toml(self, path: str | Path) -> None:
         """Replace the TOML layer using a UTF-8 mapping parsed by tomllib."""

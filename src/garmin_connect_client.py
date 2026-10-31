@@ -1,6 +1,6 @@
 """Standalone Garmin Connect client with a process-local singleton."""
 
-from asyncio import Lock, run
+from asyncio import CancelledError, Lock, run
 import base64
 import json
 import math
@@ -77,8 +77,17 @@ class GarminConnectClient:
         async with cls._instance_lock:
             if cls._instance is None:
                 instance = object.__new__(cls)
-                await instance._initialize()
+                Logger.INFO('GarminConnectClient initialization started.')
+                initialized = False
+                try:
+                    await instance._initialize()
+                    initialized = True
+                finally:
+                    if not initialized:
+                        status = 'cancelled' if isinstance(sys.exception(), CancelledError) else 'failed'
+                        Logger.INFO('GarminConnectClient initialization %s.', status)
                 cls._instance = instance
+                Logger.INFO('GarminConnectClient initialization completed.')
         return cls._instance
 
     @classmethod
@@ -458,11 +467,13 @@ class GarminConnectClient:
     async def aclose(self) -> None:
         """Close owned transport after callers stop; allow factory recreation."""
         async with type(self)._instance_lock:
+            Logger.INFO('GarminConnectClient shutdown started.')
             await self._http_client.aclose()
             self._token = ""
             self._token_expires_at = 0.0
             if type(self)._instance is self:
                 type(self)._instance = None
+            Logger.INFO('GarminConnectClient shutdown completed; token state cleared.')
 
     def __new__(cls) -> "GarminConnectClient":
         message = "Use await GarminConnectClient.get_client() to create the client."
@@ -485,10 +496,30 @@ class GarminConnectClient:
     async def _ensure_token(self) -> None:
         """Serialize checks and refresh within ten minutes of expiration."""
         async with self._token_lock:
-            if self._token and self._token_expires_at - time() > 600:
+            remaining = self._token_expires_at - time()
+            if self._token and remaining > 600:
                 return
-            token, expires_at = await self._request_token()
-            self._token, self._token_expires_at = token, expires_at
+            if not self._token:
+                reason = 'missing'
+                Logger.INFO('Garmin token unavailable; a new token is required.')
+            elif remaining <= 0:
+                reason = 'expired'
+                Logger.INFO('Garmin token expired; refresh is required.')
+            else:
+                reason = 'expiring'
+                Logger.INFO('Garmin token expires within 600 seconds; refresh is required; remaining_seconds=%.0f.', remaining)
+            Logger.INFO('Garmin token acquisition started; reason=%s.', reason)
+            acquired = False
+            try:
+                token, expires_at = await self._request_token()
+                self._token, self._token_expires_at = token, expires_at
+                acquired = True
+                Logger.INFO('Garmin token acquisition succeeded; reason=%s; expires_at_unix=%.0f; remaining_seconds=%.0f.',
+                            reason, expires_at, expires_at - time())
+            finally:
+                if not acquired:
+                    status = 'cancelled' if isinstance(sys.exception(), CancelledError) else 'failed'
+                    Logger.INFO('Garmin token acquisition %s; reason=%s.', status, reason)
 
     async def _request_token(self) -> tuple[str, float]:
         """Exchange a locally loaded key; retain no separate API key member."""

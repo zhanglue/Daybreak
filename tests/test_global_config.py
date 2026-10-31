@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import tomllib
@@ -32,12 +32,19 @@ class GlobalConfigTests(unittest.TestCase):
     def test_default_toml_matches_schema_and_loads(self):
         path = Path(__file__).resolve().parents[1] / "config/default_config.toml"
         defaults = tomllib.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(set(defaults), {"Logging", "GeneralHttpClient", "GarminConnectClient"})
-        expected = asdict(ConfigData())
+        self.assertEqual(set(defaults), {"Logging", "MCPServer", "GeneralHttpClient", "GarminConnectClient"})
+        base = ConfigData()
+        # The checked-in TOML may deliberately enable diagnostic DEBUG output.
+        self.assertIn(defaults['Logging']['level'], ('INFO', 'DEBUG'))
+        self.assertIn(defaults['Logging']['console']['level'], ('INFO', 'DEBUG'))
+        configured = replace(base, Logging=replace(
+            base.Logging, level=defaults['Logging']['level'],
+            console=replace(base.Logging.console, level=defaults['Logging']['console']['level'])))
+        expected = asdict(configured)
         self.assertEqual(expected["GarminConnectClient"].pop("http_client_name"), "GarminConnect")
         self.assertEqual(defaults, expected)
         global_config.update_from_toml(path)
-        self.assertEqual(global_config._data, ConfigData())
+        self.assertEqual(global_config._data, configured)
         self.assertEqual(global_config.GarminConnectClient.http_client_pool_size, 10)
 
     def test_garmin_configuration_validation(self):
@@ -55,6 +62,37 @@ class GlobalConfigTests(unittest.TestCase):
             with self.subTest(content=content), self.assertRaises(ValueError):
                 self.load("[GarminConnectClient]\n" + content)
             self.assertIs(global_config._data, snapshot)
+
+    def test_mcp_configuration_layers_and_validation(self):
+        self.assertEqual(global_config.MCPServer.data_source, 'garmin_connect')
+        self.load('[MCPServer]\ntimezone_name = "Asia/Shanghai"\nrecent_days = 4\n')
+        global_config.update_from_cli(['--MCPServer.recent-days', '2',
+                                       '--MCPServer.data-source', 'future_source'])
+        self.assertEqual(global_config.MCPServer.recent_days, 2)
+        self.assertEqual(global_config.MCPServer.timezone_name, 'Asia/Shanghai')
+        self.assertEqual(global_config.MCPServer.data_source, 'future_source')
+        global_config.update_from_cli([])
+        for value in ['recent_ttl_seconds = 0', 'profile_ttl_seconds = 0',
+                      'transport = "sse"', 'port = 0', 'port = 65536',
+                      'host = "0.0.0.0"', 'host = "example.com"',
+                      'path = "mcp"', 'path = "/../mcp"', 'path = "/mcp?key=x"',
+                      'timezone_name = "not/a/timezone"', 'data_directory = " "',
+                      'recent_days = -1', 'recent_days = true']:
+            snapshot = global_config._data
+            with self.subTest(value=value), self.assertRaises((ValueError, TypeError)):
+                self.load('[MCPServer]\n' + value)
+            self.assertIs(global_config._data, snapshot)
+
+    def test_display_configuration_masks_credentials_without_mutation(self):
+        self.load('[GarminConnectClient]\napi_key_string = "synthetic-secret"\n')
+        global_config.update_from_cli(['--MCPServer.timezone-name', 'Asia/Shanghai'])
+        displayed = global_config.to_display_dict()
+        self.assertEqual(list(displayed), ['MCPServer', 'GarminConnectClient', 'GeneralHttpClient', 'Logging'])
+        self.assertEqual(displayed['GarminConnectClient']['api_key_string'], '********')
+        self.assertNotIn('synthetic-secret', str(displayed))
+        self.assertEqual(displayed['MCPServer']['timezone_name'], 'Asia/Shanghai')
+        self.assertEqual(displayed['Logging']['file']['backup_count'], 3)
+        self.assertEqual(global_config.GarminConnectClient.api_key_string, 'synthetic-secret')
 
     def test_import_creates_singleton_without_parsing_arguments(self):
         subprocess.run([sys.executable, "-c",

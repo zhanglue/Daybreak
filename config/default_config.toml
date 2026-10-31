@@ -1,3 +1,30 @@
+[MCPServer]
+transport = "http"
+host = "127.0.0.1"
+port = 15666
+path = "/mcp"
+data_source = "garmin_connect"
+data_directory = "garmin_data"
+timezone_name = "UTC"
+recent_days = 7
+recent_ttl_seconds = 3600
+profile_ttl_seconds = 86400
+
+[GarminConnectClient]
+api_key_string = ""
+api_key_file = "config/API_KEY.txt"
+http_client_pool_size = 10
+base_url = "https://personal.connectapi.garmin.com"
+timeout = 5.0
+max_keepalive_connections = 10
+keepalive_expiry = 5.0
+
+[GeneralHttpClient]
+timeout = 5.0
+max_connections = 100
+max_keepalive_connections = 20
+keepalive_expiry = 5.0
+
 [Logging]
 level = "INFO"
 
@@ -11,18 +38,3 @@ level = "INFO"
 path = "logs/daybreak.log"
 max_bytes = 10485760
 backup_count = 3
-
-[GeneralHttpClient]
-timeout = 5.0
-max_connections = 100
-max_keepalive_connections = 20
-keepalive_expiry = 5.0
-
-[GarminConnectClient]
-api_key_string = ""
-api_key_file = "config/API_KEY.txt"
-http_client_pool_size = 10
-base_url = "https://personal.connectapi.garmin.com"
-timeout = 5.0
-max_keepalive_connections = 10
-keepalive_expiry = 5.0

@@ -1,6 +1,9 @@
 # Garmin Daily Report: Initial Implementation Plan
 
-Status: managed HTTP clients and the standalone Garmin client are implemented; 66 tests pass in the shared Conda environment. Live Garmin validation is confirmed by the user; MCP integration remains pending.
+Status: managed HTTP clients, the standalone Garmin client, and the first local-first
+HTTP MCP service are implemented; 92 tests pass in the shared Conda environment.
+Live Garmin client validation is confirmed by the user; live MCP access and
+Codex/Skill integration remain pending.
 
 ## Objective
 
@@ -12,8 +15,9 @@ Use Garmin Connect as the data source, use ChatGPT/Codex as the AI analysis capa
 Manual / scheduled task
   -> Local Codex process with predefined Skills
   -> Daybreak MCP tools
-  -> Garmin integration using the async httpx client
-  -> Garmin Connect APIs
+  -> Local data layer: read valid files under garmin_data/
+     -> On miss or expiry: Garmin integration using the async httpx client
+     -> Garmin Connect APIs -> atomic local persistence
   -> Structured results returned through MCP
   -> Codex analysis and daily report
 ```
@@ -22,14 +26,21 @@ Manual / scheduled task
 - **Skills:** define which MCP tools to call, how to interpret results, how to handle missing data, and how to produce the report.
 - **Codex:** acts as the MCP client, follows the Skills, analyzes returned data, and generates the report.
 - **Daybreak MCP server:** exposes data tools, validates arguments, accesses Garmin, and returns structured data and errors.
+- **Local data layer:** owns file identity, freshness, incremental gap retrieval,
+  atomic persistence, and provenance; a valid local hit requires no Garmin auth.
 - **Garmin integration:** owns Garmin authentication, sessions, endpoint mapping, and data normalization.
 - **Generic HTTP client:** owns reusable asynchronous HTTP transport using `httpx`.
 
-Codex must not access Garmin directly. The server does not invoke Codex; the runner is a separate component. Local MCP transport and server lifecycle remain open decisions: do not assume an always-running HTTP service is required.
+Codex must not access Garmin directly. The server does not invoke Codex; the runner
+is a separate component. The selected default is a persistent local Streamable
+HTTP service shared by client processes. Stdio remains an explicit alternative.
 
 ## Confirmed decisions
 
 - Daybreak is primarily a local MCP server backed by Garmin Connect APIs.
+- Persist health-data responses in ignored repository-relative `garmin_data/`,
+  primarily by calendar date and endpoint. Read local data first; fetch missing
+  or expired records. Authentication tokens remain process-local.
 - Define Skills in advance so Codex knows how to retrieve and analyze data through MCP.
 - Use a general-purpose asynchronous HTTP client based on `httpx` behind the Garmin integration.
 - Refine the selected datasets and MCP contracts after validating Garmin access.
@@ -327,15 +338,214 @@ Resolve each decision before its implementation depends on it:
 
 - Garmin access method and credential/session storage.
 - Selected datasets, timezone, report-day boundaries, and history requirements.
-- Data preparation format and retention policy.
-- MCP SDK, local transport, server lifecycle, tool contracts, and result-size limits.
+- Finalize the proposed JSON envelope, configurable refresh periods, calendar
+  timezone, and per-endpoint daily partition semantics in the local-data draft.
+- Final tool contracts, result-size limits, and service auto-start; FastMCP and
+  the shared local HTTP transport/lifecycle are selected.
 - Skills packaging and discovery, Codex invocation, output contract, and authorized data scope.
 - Scheduling mechanism, execution time, retry policy, and unattended environment.
 - Report language, format, sections, and output behavior.
 
 Markdown is a candidate report format. `Asia/Shanghai` is a candidate timezone. Neither is a confirmed product requirement.
 
+## User-selected increment: local persistence design
+
+On 2026-10-31 the user approved file persistence and local-first MCP reads.
+[Local data and MCP contract draft](../local-data-contracts.md) records the design.
+
+- [x] Record storage layout, parameter identity, atomic writes, stale fallback,
+  range handling, initial Skill workflow, and provisional MCP tool contracts.
+- [x] Ignore the complete `garmin_data/` tree before any personal data is written.
+- [ ] Confirm dataset mappings and daily partition completeness using synthetic
+  or explicitly approved sanitized response structures.
+- [ ] Finalize timezone, freshness defaults, limits, and non-dated/binary contracts.
+- [ ] Distinguish client failures from successful empty responses before caching
+  no-data outcomes; preserve or explicitly migrate the existing client contract.
+- [x] Implement and verify the initial JSON file store and local-first data service
+  with synthetic fixtures in the existing `daybreak` environment.
+- [ ] Integrate MCP tools and verify the initial Skill through the planned workflow.
+
+Design verification: check Markdown diffs and the ignore rule using synthetic
+paths only. No store contents, credentials, or health data were accessed. No
+runtime implementation or milestone completion is claimed. Suggested next step:
+finalize daily endpoint adapters and implement the persistence layer against
+synthetic responses before MCP integration.
+
+### First MCP implementation (2026-10-31)
+
+The later user request selected `src/mcp_server.py` implementation. It now
+registers six FastMCP stdio tools over `src/garmin_data_store.py`. Daily summary,
+sleep, HRV, heart rate, SpO2, and fitness age use independently reusable dated
+records. Weight, steps, stress, hydration, Body Battery, and activity search
+preserve exact request ranges/pages until response partitions are verified.
+Activity details/workouts and profile/settings tools are also available.
+See [MCP server usage](../mcp-server.md) for the actual contract and commands.
+
+The entry point reads timezone and refresh settings from `GlobalConfig.MCPServer`;
+UTC is the default timezone and deployments can override it. All filenames include the endpoint plus parameter hash,
+including default calls. Local hits do not authenticate. Refresh failures retain
+old data, ambiguous `None` is never cached, empty collections refresh conservatively,
+and persistence failures return explicit warnings. One writer process owns the
+store. No database, scheduler, Codex invocation, or client registration was added.
+
+Verification: all 76 tests pass in the existing `daybreak` environment, including
+10 new synthetic tests with in-process MCP calls and real stdio subprocess tool
+discovery from another working directory. Coverage includes persisted reuse after
+service restart, missing-date retrieval, concurrent misses, expiration, stale
+fallback, initial auth transport failure, parameter isolation, corrupt records,
+atomic replacement failure, symlink rejection, cancellation, limits, and partial
+results. No real credentials or health data were read; no live Garmin call was
+made. Pre-existing design edits and unrelated user editor settings were preserved.
+
+Remaining work: verify endpoint response shapes before range partitioning; add
+projections for oversized single records, additional endpoint filters/datasets,
+and typed success/no-data outcomes if required. Live MCP validation and Skill/
+Codex discovery remain separate acceptance checks. Suggested next step: connect
+the local MCP server to Codex and verify discovery before authorizing live tools.
+
+### MCP configuration consolidation
+
+The user requires application configuration to be centralized in GlobalConfig.
+`MCPServerConfig` now owns `data_source`, `data_directory`, `timezone_name`,
+`recent_days`, `recent_ttl_seconds`, and `profile_ttl_seconds`. The default TOML
+mirrors these fields, and existing dotted CLI parsing replaces the standalone
+MCP argument parser. StorePolicy was removed; the store consumes the same frozen
+configuration snapshot. Server initialization selects the Garmin client factory
+only for `garmin_connect`; all other source values log ERROR and raise
+`NotImplementedError`. Authentication remains lazy for local-only operation.
+Tests verify layered configuration, invalid updates, source selection, unsupported
+sources, and updated stdio startup. No credentials or personal data are accessed.
+Verification: all 78 tests pass in the existing `daybreak` environment; the
+updated dotted CLI also passes subprocess stdio discovery. Diff whitespace checks
+pass. Live Garmin/MCP validation remains outside this increment.
+
+Startup configuration output: after TOML and CLI loading, the server logs the
+complete effective snapshot at INFO before initialization. `to_display_dict()`
+preserves outer-to-inner schema order and masks dataclass fields with `repr=False`,
+including the inline Garmin key. Logging honors configured handlers and levels;
+stdout remains reserved for MCP. Synthetic tests verify masking without mutation
+and stderr configuration output alongside successful stdio discovery. All 79
+tests pass in `daybreak`; no real credentials or health data were accessed.
+
+### Shared local HTTP service
+
+The user selected a persistent local service serving multiple Codex processes.
+`MCPServer` now declares `transport="http"`, `host="127.0.0.1"`, `port=8000`,
+and `path="/mcp"` before data settings. Startup uses Streamable HTTP with explicit
+stateful sessions and Host/Origin protection; stdio remains an explicit option.
+Only loopback binding is supported in this increment. Unsupported transports,
+invalid ports/paths, and non-loopback hosts are rejected during configuration.
+One server process shares its store, per-key locks, and lazy Garmin client across
+client sessions; disconnecting a session does not close the shared client.
+
+Verification: all 81 tests pass in `daybreak`. Loopback binding was blocked in
+the sandbox; the approved rerun passed. A real temporary HTTP listener served
+MCP calls from two independent client processes, retained service after disconnect,
+reused one successful remote fetch, accepted reconnects, and closed the mock Garmin
+client exactly once on shutdown. Startup dispatch, config validation, and explicit
+stdio discovery also pass. Tests use synthetic data; no real Garmin requests,
+credentials, or personal data are accessed. Service auto-start and actual Codex
+client registration remain pending; no long-running service was left behind.
+
+### Complete Garmin MCP endpoint coverage
+
+The user explicitly selected all 26 existing client APIs and all their parameters
+for MCP exposure. `src/garmin_mcp_tools.py` now registers an explicit endpoint
+allowlist, deriving required fields, defaults and parameter types from client
+signatures. The six existing convenience tools remain, giving 32 tools total.
+Direct tools preserve optional date semantics and use a calendar-day cache context
+for implicit dates. They validate dates, IDs, search controls and documented range
+caps without fixing optional filters or boolean values. Lifecycle/auth methods
+remain private. No new Garmin remote endpoints are invented.
+
+`download_activity` stores immutable content-addressed ZIPs with atomic JSON
+metadata publication and exposes a validated local-only MCP binary resource.
+Checksums detect missing/corrupt binaries; failed refresh retains previous data.
+Files are not extracted. Failed metadata publication may leave an unreferenced
+ZIP; garbage collection and streaming large files remain follow-up work.
+See [MCP server usage](../mcp-server.md) for all 26 names and binary semantics.
+
+The user's TOML listener port 15666 is preserved; the schema default and current
+usage examples now match it. Other existing user edits are retained.
+
+Verification: all 86 tests pass in the shared `daybreak` environment. Five added
+tests check inventory/schema coverage, every parameter forwarded through MCP,
+local reuse, optional dates, parameter variants, invalid arguments, ZIP resource
+reading, checksums, repair, refresh fallback, and persistence failure. Existing
+HTTP multi-process and stdio discovery tests now discover 32 tools. The sandbox
+blocked loopback binding; the approved network-enabled rerun passed. Diff checks
+pass. No live Garmin requests, credentials, or personal health data were accessed
+for this increment. Restart the running server and refresh client discovery to
+load the new tools. Full live endpoint coverage remains unverified.
+
+### PR handoff verification
+
+Live MCP verification after server restart discovered 32 tools and the binary
+resource template through an MCP SDK client. Selected single-day and multi-day
+wellness, sleep, HRV, weight, Body Battery, activity search and activity detail
+queries succeeded, and local-only reads reused persisted records. This confirms
+representative end-to-end access, not live coverage of all 26 endpoints or native
+Codex/Skill discovery. No credentials, responses, metrics, or personal analysis
+are stored in tracked files.
+
+PR review identified ZIP content hashing overwriting the request identity variable,
+which prevented concurrent forced downloads from sharing a successful refresh.
+Separate request and archive hashes now preserve the correct generation counter;
+a synthetic concurrent-refresh regression covers the fix. All 87 tests pass in
+the shared environment, including loopback HTTP and subprocess discovery.
+
+Follow-up boundaries remain exact-range caching, source/configured timezone
+semantics, oversized JSON projections, ambiguous client empty/error outcomes,
+and whole-file binary buffering. These do not claim to be completed milestones.
+Keep the ignored local store and any personal output outside the PR; existing
+unrelated editor changes remain untouched.
+
+### HTTP request DEBUG context
+
+The user requests complete URI/path/query diagnostics. HTTP requests are now
+built once before sending, so lazy DEBUG formatting uses the actual resolved URL
+and serialized repeated parameters. Start and response entries share a generated
+request ID. Ordinary query values are not truncated; URL user information,
+credential-like query fields, and known header/query credentials are redacted.
+Headers and request bodies remain unprinted; response previews retain the existing
+2048-byte/character limit. ERROR logs remain unchanged. MockTransport tests verify
+wire values, relative URLs, repeated parameters, query/header credential redaction,
+response echoes, and failed-request logging without live access. The default TOML
+schema check now permits the explicitly requested diagnostic DEBUG override while
+retaining INFO code defaults. All 92 tests pass in `daybreak` using synthetic data.
+
 ## Progress and handoff
+
+Storage directory typo corrected: the schema default, TOML, Git ignore rule, and
+usage/planning documentation consistently use `garmin_data/`. Neither the old nor
+new default directory existed locally at this change, so no cache migration was
+needed and no personal data was read. Configuration checks pass in `daybreak`.
+
+User-selected diagnostic configuration: TOML shared and console logging levels
+are temporarily DEBUG for the next live MCP analysis after the user restarts the
+service. Code defaults remain INFO; dependency loggers remain disabled. File
+logging remains disabled. This is a deliberate diagnostic override of schema
+defaults, not a change to logging behavior. Configuration loading was checked
+without credentials, health-data access, or remote requests.
+
+MCP request INFO logging: middleware now records tool calls/discovery and resource
+reads/discovery through the shared Logger. Received and finished entries share
+a generated call ID and report method, allowlisted tool name, status, and elapsed
+milliseconds. Parameters, resource URIs, payloads, and raw exceptions are excluded;
+unknown tool names are redacted. Result-level partial/error and cancellation
+statuses are preserved without changing results or exceptions. Two added tests
+verify real MCP logging, privacy markers, paired IDs, partial results, and
+cancellation. All 90 tests pass with synthetic data; no live Garmin access.
+
+Server dependency logging: at the user's request, `mcp_server.main()` now disables
+FastMCP and Uvicorn logger namespaces and existing children before starting the
+service. Null handlers and disabled propagation silence later propagating children.
+Uvicorn receives `log_config=None` and `access_log=False`, preventing default
+handler reconfiguration and stdout access logs. Dependency warnings/errors are
+also intentionally suppressed. Shared Daybreak logging is unchanged. Tests cover
+Uvicorn initialization, late child loggers, application logging, startup dispatch,
+and stdio discovery without the FastMCP startup message. All 88 tests pass using
+synthetic data; no live Garmin access was performed.
 
 Each milestone starts on demand from the latest `main`. Update its checkboxes after verification, and update the roadmap only when its acceptance criteria are met. Record material decisions and unresolved issues here so a new conversation can resume from repository context.
 

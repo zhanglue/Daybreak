@@ -332,3 +332,42 @@ class AsyncHttpClientLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("denied", output)
         self.assertIn("<redacted>", output)
         self.assertNotIn("synthetic-secret", output)
+
+    async def test_debug_request_contains_effective_url_and_query_without_credentials(self):
+        messages, requests = [], []
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(200, json={'echo': 'query-secret-value'})
+        client = self.register_transport(respond, AsyncHttpClientConfig(
+            base_url='https://example.test/api/', bearer_token='header-secret-value'))
+        with patch('async_http_client.Logger.DEBUG', side_effect=lambda message,*args: messages.append(message % args)):
+            await client.get('records', params={
+                'startDate':'2026-10-19', 'requiredField':['power','heartRate'],
+                'includeAll':True, 'apiKey':'query-secret-value',
+            })
+        output = '\n'.join(messages)
+        self.assertIn('"method": "GET"', output)
+        self.assertIn('https://example.test/api/records?', output)
+        self.assertIn('"path": "/api/records"', output)
+        self.assertIn('["startDate", "2026-10-19"]', output)
+        self.assertIn('["requiredField", "power"]', output)
+        self.assertIn('["requiredField", "heartRate"]', output)
+        self.assertIn('["includeAll", "true"]', output)
+        self.assertNotIn('header-secret-value', output)
+        self.assertNotIn('query-secret-value', output)
+        self.assertEqual(requests[0].url.params['apiKey'], 'query-secret-value')
+        self.assertEqual(requests[0].headers['Authorization'], 'Bearer header-secret-value')
+        ids = [line.split('request_id=')[1].split(';')[0] for line in messages]
+        self.assertEqual(ids[0], ids[1])
+
+    async def test_debug_url_credentials_and_failed_request_are_safe(self):
+        messages = []
+        client = self.register_transport(lambda request: (_ for _ in ()).throw(httpx.ConnectError('synthetic')))
+        with patch('async_http_client.Logger.DEBUG', side_effect=lambda message,*args: messages.append(message % args)):
+            with self.assertRaises(HttpConnectionError):
+                await client.get('https://synthetic-user:synthetic-password@example.test/path?token=query-secret&date=2026-10-19')
+        output = '\n'.join(messages)
+        self.assertIn('https://example.test/path?', output)
+        self.assertIn('2026-10-19', output)
+        for value in ['synthetic-user','synthetic-password','query-secret']:
+            self.assertNotIn(value, output)

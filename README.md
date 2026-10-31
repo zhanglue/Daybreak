@@ -2,7 +2,14 @@
 
 Daybreak uses Garmin Connect data and the AI capabilities of ChatGPT/Codex to generate a daily report. Daybreak is primarily a local MCP server. Predefined Skills guide a local Codex process to retrieve data through that server and produce the report. Manual or scheduled tasks trigger the workflow.
 
-Status: managed HTTP clients and the standalone Garmin Connect client are implemented, with 26 GET endpoints aligned to Garmin API specification 1.0.0. All 66 tests pass, and the user has confirmed successful live Garmin validation. MCP integration remains pending.
+Status: managed HTTP clients, the standalone Garmin Connect client, and the first
+local-first HTTP MCP service are implemented. The Garmin client has 26 GET endpoints
+aligned to API specification 1.0.0; all 26 are exposed as MCP tools with complete
+client parameters, alongside six convenience tools and a binary ZIP resource.
+Live Garmin client access was confirmed by the user. Complete live coverage of
+the 26 tools and native Codex/Skill integration remain pending. Live MCP discovery,
+local cache reuse, and selected single-day/multi-day health and activity queries
+have been verified through an MCP SDK client; private results are not tracked.
 
 ## Implementation sequence
 
@@ -31,11 +38,22 @@ Manual / scheduled task -> Local Codex + predefined Skills
 
 Data returns through the MCP server to Codex for analysis and report generation. Codex does not directly access Garmin APIs or Garmin credentials. The MCP server serves tools and data; it does not launch Codex. A separate task runner starts Codex and captures the report.
 
+The MCP server reads local files first and fetches missing or expired
+records through the Garmin integration. The repository-relative store is
+`garmin_data/`, organized primarily by date and endpoint, and excluded from Git.
+See [MCP server usage](docs/mcp-server.md) for startup, supported datasets, refresh
+rules, and current limitations. Start one service with `python src/mcp_server.py`
+in the `daybreak` environment; multiple clients connect to
+`http://127.0.0.1:15666/mcp`. Listener settings are centralized in `MCPServer`. The [contract draft](docs/local-data-contracts.md)
+retains the broader design direction and pending work.
+
 ## Documentation
 
 - Garmin API reference: [official Personal API Swagger](https://developer.garmin.com/gc-developer-program/personal/swagger-docs/). The client currently targets API specification version **1.0.0**, recorded in `GarminConnectClient.SWAGGER_VERSION`; `SWAGGER_URL` records the source address. This is the Garmin specification version, not the OpenAPI format version.
 - [Roadmap](docs/roadmap.md): project direction and milestone status.
 - [Implementation plan](docs/plans/garmin-daily-report.md): scope, tasks, acceptance criteria, and open decisions.
+- [Local data and MCP contract draft](docs/local-data-contracts.md): planned file persistence and local-first tool behavior.
+- [MCP server usage](docs/mcp-server.md): stdio startup, tools, persistence, and verification.
 - [Repository instructions](AGENTS.md): collaboration and development rules.
 
 ## Development workflow
@@ -82,8 +100,8 @@ global_config.update_from_cli()  # Explicitly parse sys.argv[1:].
 timeout = global_config.GeneralHttpClient.timeout
 ```
 
-`config/default_config.toml` mirrors the class defaults and has three root
-sections: `Logging`, `GeneralHttpClient`, and `GarminConnectClient`. The latter defines
+`config/default_config.toml` mirrors the configuration schema with explicit overrides and has four root
+sections: `Logging`, `MCPServer`, `GeneralHttpClient`, and `GarminConnectClient`. The latter defines
 `api_key_string=""`, `api_key_file="config/API_KEY.txt"`, and `http_client_pool_size=10`
 (overridable with `--GarminConnectClient.http-client-pool-size`). Pool size must
 be positive and maps to the owned HTTP client's `max_connections`.
@@ -195,6 +213,16 @@ and `NOTSET`. Boolean CLI options use `--Logging.file.enabled` to enable and
 `--Logging.file.level DEBUG`. These are configuration contracts only: loading
 configuration does not create handlers, directories, or log files.
 
+`GlobalConfig().MCPServer` centralizes MCP transport/listener, data source, data directory, calendar
+timezone, and freshness settings. Listener defaults are `transport="http"`,
+`host="127.0.0.1"`, `port=15666`, and `path="/mcp"`. Data defaults are `data_source="garmin_connect"`,
+`data_directory="garmin_data"`, `timezone_name="UTC"`, `recent_days=7`,
+`recent_ttl_seconds=3600`, and `profile_ttl_seconds=86400`. Override through the
+`[MCPServer]` TOML table or dotted CLI options such as
+`--MCPServer.timezone-name Asia/Shanghai`. Unsupported sources raise
+`NotImplementedError` during server initialization, before tools are served.
+See [MCP server usage](docs/mcp-server.md) for the complete behavior.
+
 ## Global logger
 
 `src/logger.py` provides the process-local `Logger` singleton. Load configuration
@@ -263,7 +291,7 @@ async def fetch_status():
 
 Non-2xx statuses, including redirects, raise `HttpStatusError` carrying the `HttpResponse` in `.response`. Timeouts raise `HttpTimeoutError`, network errors raise `HttpConnectionError`, and other HTTPX request errors raise `HttpTransportError`. These derive from `HttpClientError`; transport errors have no response. Error messages omit URLs, bodies, credentials, and underlying error text, and suppress the underlying exception traceback. Response bodies may contain sensitive server data and must be handled explicitly. Invalid request arguments remain programming errors, and cancellation propagates unchanged. Requests are not retried and redirects are not followed automatically.
 
-Request DEBUG logs include timeout/connection settings, whether query/body arguments were supplied, response status, body size, and a JSON body preview. Body previews are formatted lazily, limited to 2048 bytes/characters, and omitted for oversized or non-JSON bodies. Common credential fields are redacted recursively, and configured/request Authorization, Cookie, and API-key header values are removed from previews. URLs and request body values are not logged. These rules are not a general personal-data anonymizer; response previews can still contain application data.
+Request DEBUG logs include the actual HTTP method, fully resolved URL, path, all query parameters (including repeated values), timeout/connection settings, whether body arguments were supplied, response status, body size, and a JSON body preview. A generated request ID correlates request and response entries. Request context is formatted lazily from the built HTTPX request, after base URL and parameter merging. URL user information is removed; credential-like query fields and known credential values are redacted. Ordinary query values are retained without truncation. Body previews are formatted lazily, limited to 2048 bytes/characters, and omitted for oversized or non-JSON bodies. Common credential fields are redacted recursively, and configured/request Authorization, Cookie, and API-key header values are removed from previews. Request headers and request body values are not logged. These rules are not a general personal-data anonymizer; response previews can still contain application data.
 
 HTTP client creation, request execution, JSON decoding, shutdown, duplicate registration, and missing-client lookup failures emit an ERROR through `Logger.ERROR(err_msg)` before raising. Request failures are logged once at the shared request boundary, rather than again in `get()` or `post()`. Logs contain only safe operation/status messages, without URLs, names, headers, bodies, raw exception text, or tracebacks. Original non-HTTP exception types and identities are preserved. Cancellation is neither logged as an error nor wrapped. Load logging configuration before the first HTTP operation that may fail.
 

@@ -1,0 +1,943 @@
+{
+  "source": "https://developer.garmin.com/gc-developer-program/personal/swagger-docs/",
+  "version": "1.0.0",
+  "retrieved_on": "2026-10-31",
+  "endpoints": [
+    {
+      "method": "get_activity",
+      "path": "/activity-service/activity/{activityId}",
+      "parameters": [
+        {
+          "name": "activityId",
+          "python_name": "activity_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_activity_workouts",
+      "path": "/activity-service/activity/{activityId}/workouts",
+      "parameters": [
+        {
+          "name": "activityId",
+          "python_name": "activity_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      ]
+    },
+    {
+      "method": "search_activities",
+      "path": "/activitylist-service/activities/search/activities",
+      "parameters": [
+        {
+          "name": "start",
+          "python_name": "start",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          }
+        },
+        {
+          "name": "limit",
+          "python_name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 99
+          }
+        },
+        {
+          "name": "favorite",
+          "python_name": "favorite",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": -1
+          }
+        },
+        {
+          "name": "sortOrder",
+          "python_name": "sort_order",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "desc"
+          }
+        },
+        {
+          "name": "excludeChildren",
+          "python_name": "exclude_children",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "sortBy",
+          "python_name": "sort_by",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "search",
+          "python_name": "search",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "activityType",
+          "python_name": "activity_type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "activitySubType",
+          "python_name": "activity_sub_type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "eventType",
+          "python_name": "event_type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "minDistance",
+          "python_name": "min_distance",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "maxDistance",
+          "python_name": "max_distance",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "minDuration",
+          "python_name": "min_duration",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "maxDuration",
+          "python_name": "max_duration",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "minElevation",
+          "python_name": "min_elevation",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "maxElevation",
+          "python_name": "max_elevation",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "upperLatitude",
+          "python_name": "upper_latitude",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        {
+          "name": "rightLongitude",
+          "python_name": "right_longitude",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        {
+          "name": "lowerLatitude",
+          "python_name": "lower_latitude",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        {
+          "name": "leftLongitude",
+          "python_name": "left_longitude",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        {
+          "name": "lowerMaxDepth",
+          "python_name": "lower_max_depth",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "upperMaxDepth",
+          "python_name": "upper_max_depth",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "decoDive",
+          "python_name": "deco_dive",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "minElapsedDuration",
+          "python_name": "min_elapsed_duration",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "maxElapsedDuration",
+          "python_name": "max_elapsed_duration",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "minBottomTime",
+          "python_name": "min_bottom_time",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "maxBottomTime",
+          "python_name": "max_bottom_time",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "minAvgPower",
+          "python_name": "min_avg_power",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "excludedActivitySubType",
+          "python_name": "excluded_activity_sub_type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "requiredField",
+          "python_name": "required_field",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_heart_rate_zones",
+      "path": "/biometric-service/heartRateZones/v2",
+      "parameters": [
+        {
+          "name": "generateDefaults",
+          "python_name": "generate_defaults",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ]
+    },
+    {
+      "method": "download_activity",
+      "path": "/download-service/files/activity/{activityId}",
+      "parameters": [
+        {
+          "name": "activityId",
+          "python_name": "activity_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_fitness_age",
+      "path": "/fitnessage-service/fitnessage/v2/{calendarDate}",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "fullHistoryScan",
+          "python_name": "full_history_scan",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_effective_weight_goals",
+      "path": "/goal-service/goal/user/effective/weightgoal/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_hrv",
+      "path": "/hrv-service/hrv/{calendarDate}",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_hrv_summaries",
+      "path": "/hrv-service/hrv/daily/{fromDate}/{toDate}",
+      "parameters": [
+        {
+          "name": "fromDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "toDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_food_logs",
+      "path": "/nutrition-service/food/logs/{date}",
+      "parameters": [
+        {
+          "name": "includeGoals",
+          "python_name": "include_goals",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "includeNutrition",
+          "python_name": "include_nutrition",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "includeMedia",
+          "python_name": "include_media",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "mealId",
+          "python_name": "meal_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        {
+          "name": "date",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_menstrual_cycle_summary",
+      "path": "/periodichealth-service/menstrualcycle/summary/{calendarDate}",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_menstrual_cycle_day_view",
+      "path": "/periodichealth-service/menstrualcycle/dayview/{calendarDate}",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "todayDate",
+          "python_name": "today_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "reducedResponse",
+          "python_name": "reduced_response",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "skipbm",
+          "python_name": "skip_bm",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "includeAnalysis",
+          "python_name": "include_analysis",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_sleep",
+      "path": "/sleep-service/sleep/dailySleep",
+      "parameters": [
+        {
+          "name": "date",
+          "python_name": "calendar_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_sleep_summaries",
+      "path": "/sleep-service/sleep/dailySleepSummariesByDate",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_user_profile_settings",
+      "path": "/userprofile-service/userprofile/settings",
+      "parameters": []
+    },
+    {
+      "method": "get_daily_hydration",
+      "path": "/usersummary-service/stats/hydration/daily/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_steps",
+      "path": "/usersummary-service/stats/steps/daily/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_stress",
+      "path": "/usersummary-service/stats/stress/daily/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_user_summary",
+      "path": "/usersummary-service/usersummary/daily",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_summaries",
+      "path": "/usersummary-service/v2/dailysummaries",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_all_weight_measurements",
+      "path": "/weight-service/weight/all/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_weight_measurements",
+      "path": "/weight-service/weight/range/{startDate}/{endDate}",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "includeAll",
+          "python_name": "include_all",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_body_battery",
+      "path": "/wellness-service/wellness/bodyBattery/reports/daily",
+      "parameters": [
+        {
+          "name": "startDate",
+          "python_name": "start_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "endDate",
+          "python_name": "end_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "chunks",
+          "python_name": "chunks",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_spo2",
+      "path": "/wellness-service/wellness/daily/spo2acclimation/{calendarDate}",
+      "parameters": [
+        {
+          "name": "calendarDate",
+          "python_name": "calendar_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_daily_heart_rate",
+      "path": "/wellness-service/wellness/dailyHeartRate",
+      "parameters": [
+        {
+          "name": "date",
+          "python_name": "calendar_date",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    },
+    {
+      "method": "get_wellness_activity_summaries",
+      "path": "/wellnessactivity-service/activity/summary/range/{fromDate}/{untilDate}",
+      "parameters": [
+        {
+          "name": "fromDate",
+          "python_name": "start_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        {
+          "name": "untilDate",
+          "python_name": "end_date",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -128,9 +128,15 @@ class AsyncHttpClient:
                 ),
                 follow_redirects=False,
             )
-        except Exception:
-            err_msg = "HTTP client creation failed."
-            Logger.ERROR(err_msg)
+        except Exception as error:
+            if isinstance(error, ImportError):
+                Logger.ERROR(
+                    "HTTP client creation failed; error_type=%s; "
+                    "a transport dependency is missing. Install config/requirements.txt.",
+                    type(error).__name__,
+                )
+            else:
+                Logger.ERROR("HTTP client creation failed; error_type=%s.", type(error).__name__)
             raise
 
     @property

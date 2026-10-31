@@ -2,7 +2,7 @@
 
 Daybreak uses Garmin Connect data and the AI capabilities of ChatGPT/Codex to generate a daily report. Daybreak is primarily a local MCP server. Predefined Skills guide a local Codex process to retrieve data through that server and produce the report. Manual or scheduled tasks trigger the workflow.
 
-Status: managed HTTP clients with application-owned response and error types are implemented. Garmin integration is not implemented yet.
+Status: managed HTTP clients and the standalone Garmin Connect client are implemented, with 26 GET endpoints aligned to Garmin API specification 1.0.0. All 66 tests pass, and the user has confirmed successful live Garmin validation. MCP integration remains pending.
 
 ## Implementation sequence
 
@@ -33,6 +33,7 @@ Data returns through the MCP server to Codex for analysis and report generation.
 
 ## Documentation
 
+- Garmin API reference: [official Personal API Swagger](https://developer.garmin.com/gc-developer-program/personal/swagger-docs/). The client currently targets API specification version **1.0.0**, recorded in `GarminConnectClient.SWAGGER_VERSION`; `SWAGGER_URL` records the source address. This is the Garmin specification version, not the OpenAPI format version.
 - [Roadmap](docs/roadmap.md): project direction and milestone status.
 - [Implementation plan](docs/plans/garmin-daily-report.md): scope, tasks, acceptance criteria, and open decisions.
 - [Repository instructions](AGENTS.md): collaboration and development rules.
@@ -41,7 +42,7 @@ Data returns through the MCP server to Codex for analysis and report generation.
 
 Use a short-lived task branch from the latest `main`. Keep implementation and related documentation together. Merge after review and verification, then start the next task from the updated `main`.
 
-Use the shared Conda environment named `daybreak` for development and checks. The required versions are Python 3.14.8, HTTPX 0.28.1, and FastMCP 4.1.4. Python is pinned in `config/environment.yaml`; Python package dependencies are pinned in `config/requirements.txt`.
+Use the shared Conda environment named `daybreak` for development and checks. The required versions are Python 3.14.8, HTTPX 0.28.1 with SOCKS support, and FastMCP 4.1.4. Python is pinned in `config/environment.yaml`; Python package dependencies are pinned in `config/requirements.txt`.
 
 If the environment already exists, activate it:
 
@@ -83,7 +84,84 @@ timeout = global_config.GeneralHttpClient.timeout
 
 `config/default_config.toml` mirrors the class defaults and has three root
 sections: `Logging`, `GeneralHttpClient`, and `GarminConnectClient`. The latter defines
-`pool_size=10`, overridable with `--GarminConnectClient.pool-size`.
+`api_key_string=""`, `api_key_file="config/API_KEY.txt"`, and `http_client_pool_size=10`
+(overridable with `--GarminConnectClient.http-client-pool-size`). Pool size must
+be positive and maps to the owned HTTP client's `max_connections`.
+The same Garmin section defines `base_url="https://personal.connectapi.garmin.com"`, `timeout=5.0`,
+`max_keepalive_connections=10`, and `keepalive_expiry=5.0`.
+`GarminConnectClientConfig.http_client_name` defaults to `"GarminConnect"` in code
+and is omitted from the default TOML.
+`GarminConnectClient.generate_http_client_config(config)` translates these settings into
+`AsyncHttpClientConfig`. Garmin transport uses only its own configuration section;
+it does not inherit `GeneralHttpClient` values or clamp connection settings.
+Authorization remains per-request runtime state rather than static HTTP defaults.
+
+`await GarminConnectClient.get_client()` creates a lazy process-local singleton
+on the application event loop. Direct construction raises `TypeError`. The factory
+captures configuration and obtains a token before publishing the instance; failed or
+cancelled initialization can be retried. Configure before the first factory call.
+Credential resolution: a nonblank `api_key_string`
+takes precedence, otherwise the UTF-8 `api_key_file` is read and surrounding
+whitespace is removed. The file path is relative to the repository root, regardless
+of the working directory; absolute paths, parent traversal, and symlinks escaping
+the repository are rejected. Missing, unreadable, or empty credentials raise
+`ValueError` without including the key or file contents. Inline keys are excluded
+from configuration representations. Keep real keys out of tracked TOML files;
+`API_KEY.txt` is already ignored by Git.
+
+The client owns an `AsyncHttpClient` wrapper and closes it if initial token
+acquisition fails. Call `await client.aclose()` after requests have stopped to
+release transport and clear the singleton. API keys are loaded locally for each
+token exchange without an additional key member. The client stores the token and
+its UNIX expiration from the JWT `exp` claim. This decoding schedules refresh;
+it does not verify JWT signatures. Tokens with invalid expiration or at most 600
+seconds remaining are rejected. `_ensure_token()` serializes checks and refresh
+under an async lock; `@token_check` applies this guard to future public async
+remote instance methods. Waiting calls recheck the new expiration under the lock
+and do not proceed on refresh failure. Already-running requests are not paused.
+The 26 data endpoints in the supplied inventory have explicit async methods; see
+[endpoint contracts](docs/garmin-connect-client.md) for arguments and limitations.
+Their outer `@handle_api_errors` logs expected HTTP/transport, validation, and
+parsing failures and returns `None`; cancellation propagates. Factory
+initialization failures still raise without publishing a singleton.
+Token storage is intentionally process-local: a running MCP server reuses the token,
+and a process restart obtains a new one. Disk persistence is outside the agreed
+client scope. Existing HTTP DEBUG response previews are retained for this personal
+application. There is no background refresh timer or authentication-status retry. Token endpoint behavior follows the
+[official Garmin authentication example](https://github.com/garmin/connect-personal-api-python/blob/main/src/garmin_personal_api/auth.py).
+
+Run the standalone Garmin smoke test from the repository root:
+
+```bash
+conda activate daybreak
+python src/garmin_connect_client.py
+```
+
+HTTPX honors proxy environment settings. The declared `httpx[socks]` dependency
+includes `socksio` so SOCKS-configured shells can create clients. If transport
+creation fails, ERROR logs show the exception type and an installation hint for
+missing dependencies without exposing proxy URLs or raw exception messages.
+Synchronize packages in the active environment with
+`python -m pip install -r config/requirements.txt`.
+
+With proxy variables unset, HTTPX connects directly. With a reachable HTTP or
+SOCKS proxy configured, it routes requests through that proxy; `NO_PROXY` can
+bypass it for matching hosts. Stopping a proxy application does not clear shell
+proxy variables: unset stale proxy settings before running in direct mode.
+Proxy selection is captured when the HTTP client is created; restart the process
+or close and recreate the client after changing proxy settings. There is no
+automatic direct fallback when a configured proxy is unavailable.
+
+The entry point loads `config/default_config.toml` relative to the repository,
+then applies existing dotted CLI overrides. It prints the Garmin configuration
+with `api_key_string` always replaced by `********`, obtains a token through the
+factory, and prints heart rate zones and user profile settings as JSON. The token
+itself is not printed; only its expiration is shown. The client and logger are
+closed before exit. Exit status is 0 when both GETs return non-null results and 1
+on initialization, handled remote, or cleanup failure. Imports do not execute the
+smoke test. This manual command accesses real account data when supplied a real
+key; automated verification uses synthetic responses only.
+
 Loading remains explicit. Example override TOML:
 
 ```toml

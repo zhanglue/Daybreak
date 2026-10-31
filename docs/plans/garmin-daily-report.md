@@ -1,6 +1,6 @@
 # Garmin Daily Report: Initial Implementation Plan
 
-Status: managed HTTP client wrappers, response/error contracts, and shutdown implemented; 21 tests pass in the shared Conda environment.
+Status: managed HTTP clients and the standalone Garmin client are implemented; 66 tests pass in the shared Conda environment. Live Garmin validation is confirmed by the user; MCP integration remains pending.
 
 ## Objective
 
@@ -70,10 +70,145 @@ Acceptance: an asynchronous caller can use the client independently of Garmin; b
 
 Dependency: milestone 2. Suggested branch: `spike/garmin-access`.
 
+User-selected increment: `src/garmin_connect_client.py` provides a standalone,
+process-local `GarminConnectClient`. The async `get_client()` factory owns
+creation and publication under an `asyncio.Lock`, rechecking the singleton after
+acquiring the lock. Direct construction logs an ERROR and raises `TypeError`.
+Initialization now obtains a token before publication, using an owned generic
+HTTP wrapper. Failure or cancellation closes that wrapper and permits retry;
+`aclose()` releases it and clears the singleton after requests stop. Callers must
+use one application event loop. No separate API key member is retained. Token
+exchange uses a locally loaded key and parses the plain-text JWT's `exp` as UNIX
+seconds, following the [official Garmin authentication example](https://github.com/garmin/connect-personal-api-python/blob/main/src/garmin_personal_api/auth.py).
+Parsing is for refresh scheduling, not signature verification. `_ensure_token()`
+locks checks and refreshes when remaining lifetime is at most 600 seconds;
+waiting calls recheck after acquiring the lock. `@token_check` guards future
+public async remote instance methods. Invalid or near-expiry new tokens fail
+without replacing existing state. Refresh failure prevents remote execution.
+Token storage is intentionally process-local; disk persistence is outside the agreed
+client scope. Authentication-status recovery is not implemented.
+All 51 tests pass in the existing `daybreak` environment using synthetic keys,
+JWTs, and mocked HTTP calls. No live Garmin request or real credential access was
+performed by the agent. The later user-confirmed live validation is recorded below.
+
+Endpoint increment: all 26 public GET routes have explicit async methods
+using `@token_check`. On 2026-10-31 the official Swagger page's embedded API
+specification version 1.0.0 (OpenAPI format 3.0.1) was retrieved and all declared parameters were checked.
+Corrections include search limit 99 and all 32 filters, weight includeAll=false,
+optional query dates, generateDefaults/fullHistoryScan, nutrition and menstrual
+options, explicit calendarDate for daily user summary, and ZIP download Accept.
+Arrays use repeated query parameters; booleans serialize as lowercase strings.
+The parameter-only public snapshot in `tests/fixtures/garmin_openapi_parameters.json`
+backs tests for every method signature, default, and wire mapping.
+[Endpoint contracts](../garmin-connect-client.md) record the complete mapping and
+server-side date-range limits. All 58 tests pass in `daybreak`, including an HTTPX
+MockTransport check for repeated array filters. No real credentials, health data,
+or live Garmin API calls were used. The automated checks do not validate live response schemas. User-confirmed live
+access is recorded below. Existing DEBUG response previews are retained by user decision.
+
+Remote error-handling increment: all 26 remote methods have `@handle_api_errors`
+outside `@token_check`. Expected HTTP/transport and `ValueError` failures are
+logged with safe operation/category/status fields and return `None`, including
+refresh and JSON parsing failures. Status errors are not mislabeled as key/token
+expiry. Cancellation and unrelated programming errors propagate; initial factory
+authentication and explicit shutdown retain exception behavior. `None` also
+represents empty/null responses, as documented. All 61 tests pass in `daybreak`,
+covering documented and unknown statuses, transport failures, refresh/JSON errors,
+safe logging, cancellation, and programming-error propagation. No live access.
+
+Standalone entry point: `python src/garmin_connect_client.py` loads repository
+TOML plus dotted CLI overrides, prints Garmin settings with the inline key masked,
+initializes the authenticated singleton, and prints heart rate zones and profile
+settings as JSON. It prints token expiration but never the token. Cleanup closes
+the client and logger; expected failures return exit status 1 without raw exception
+text. Importing does not run the command. All 64 tests pass in `daybreak`, including
+synthetic entry-point output masking, cleanup, and failure exit codes. No real
+credentials or health data were read, and the real-network command was not run.
+
+Standalone creation diagnostics (2026-10-31): the shared environment lacked
+`socksio`. Client construction succeeded with the agent's HTTP proxy environment,
+but a synthetic SOCKS proxy environment reproduced an ImportError before any
+Garmin request. Requirements now select `httpx[socks]==0.28.1`; synchronizing the
+existing `daybreak` environment installed socksio 1.0.0. SOCKS-configured client
+construction/cleanup now succeeds without network requests. Creation logs expose
+only the exception type and a safe dependency hint, preserving the original
+exception. A full `main([])` test uses the real wrapper and HTTPX MockTransport for
+token acquisition and two GETs, checks redaction, and closes resources. All 66 tests
+pass. The user's exact shell failure remains unconfirmed; no real API key or
+health data was accessed, and no live Garmin call was made.
+
+Proxy-mode verification (2026-10-31): a temporary local TLS origin and local
+HTTP CONNECT/SOCKS servers exercised the real Garmin factory, token POST, and two
+HTTPS data GETs. Direct mode with proxy variables removed, HTTP proxy, SOCKS5,
+SOCKS5h, and NO_PROXY bypass all passed with certificate verification enabled.
+Proxy hit counts confirmed actual routing. A deliberately unavailable proxy failed
+cleanly without publishing a singleton. Tests used generated local certificates,
+synthetic keys/tokens/data, and only 127.0.0.1; sandbox loopback binding required
+an approved rerun. No Garmin or other external API requests were sent. This
+verifies client proxy behavior, not reachability of a user's proxy or Garmin.
+Stopping a proxy while retaining its environment variables does not switch to
+direct mode; clear settings and recreate the client. No automatic direct fallback.
+
+Swagger provenance: README links to the official Personal API Swagger page.
+`GarminConnectClient.SWAGGER_VERSION="1.0.0"` and `SWAGGER_URL` record the current
+reference in code, with the same version and address in the endpoint document.
+This version is the specification's `info.version`, distinct from OpenAPI 3.0.1.
+
+PR scope agreement (2026-10-31): the user accepts process-local token storage for
+the long-running MCP server; disk persistence is not required. Existing generic
+HTTP DEBUG response previews are also accepted for this personal application;
+preview suppression is not required for this increment. These are deliberate
+scope decisions, not outstanding PR blockers. Automated and local proxy checks pass. The user subsequently confirmed successful
+live Garmin validation; README and roadmap reflect that confirmation while keeping
+MCP integration pending.
+
+User-confirmed live validation (2026-10-31): the user reports that real Garmin
+validation has completed successfully. This is user-provided verification, separate
+from the agent's synthetic tests and local proxy checks. The exact endpoint set
+and error cases were not provided, so this record does not claim live coverage of
+all 26 endpoints. No credentials, health data, or real responses are included.
+PR validation summary: aligned with Garmin API specification 1.0.0, 66 automated
+tests passing, local proxy modes verified, and live Garmin validation confirmed
+by the user. MCP integration remains outside this branch's scope.
+
+Configuration increment: the singleton now captures the `GarminConnectClient`
+section during factory initialization. `api_key_string` (default empty, excluded from
+representations) takes precedence over `api_key_file` (default `config/API_KEY.txt`). Key files
+are read during factory initialization as UTF-8 relative to the repository root; whitespace is stripped,
+and missing, unreadable, empty, or out-of-repository sources are rejected without
+exposing contents. `http_client_pool_size=10` replaces `pool_size` and must be
+positive and controls the owned transport connection limit. No expiration
+configuration was added; distinct authentication error codes remain unverified. The official FAQ
+states a maximum 24-hour token lifetime bounded by key expiry, with no refresh
+tokens. All 41 tests pass in the existing `daybreak` environment using synthetic
+credentials and mocked file reads; no real credentials or health data were read.
+
+HTTP configuration translation: `generate_http_client_config(config)` is a class
+method returning `AsyncHttpClientConfig` without singleton access or side effects.
+Garmin settings declare `base_url`, `timeout`,
+`max_keepalive_connections`, and `keepalive_expiry` in both the schema and default
+TOML. The code-level `http_client_name="GarminConnect"` default maps to HTTP
+`name` and is omitted from the default TOML. `http_client_pool_size` maps directly
+to `max_connections`. Initialization
+uses this translator and no longer reads `GeneralHttpClient` or hardcodes/clamps
+transport settings. Runtime authentication remains outside static configuration.
+
+Method layout: Garmin client attributes precede public class methods, public
+instance methods, special methods, and internal methods. Repository instructions
+now define this order and require explicit class-name calls for class/static
+methods, with `cls` reserved for intentional subclass dispatch inside class methods.
+This reordering changes no runtime behavior; all 51 tests pass in `daybreak`.
+
+Credential error logging: every explicit exception in `_load_api_key` is preceded
+by the shared `Logger.ERROR` with a safe message matching the exception. Tests
+verify one error log per failure without file contents or underlying error text.
+The repository instructions now require shared ERROR logging before explicit
+raises. All 41 tests pass in the existing `daybreak` environment.
+
 - [ ] Investigate current API access options and authentication using available first-party documentation and relevant dependency sources.
 - [ ] Document the selected access method, limitations, and any undocumented behavior.
 - [ ] Implement the minimum Garmin-specific authentication and request flow on top of the generic client.
-- [ ] With the user's authorization and local credentials, validate access to representative account data.
+- [x] With the user's authorization and local credentials, validate access to representative account data (confirmed by the user on 2026-10-31).
 - [ ] Establish session reuse, authentication failure handling, and diagnostic behavior without leaking secrets.
 - [ ] Record endpoint purposes and observed response structures using synthetic or approved sanitized examples.
 

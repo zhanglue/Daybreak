@@ -11,7 +11,7 @@ Generate a daily report based on Garmin Connect data, using ChatGPT/Codex for AI
 | 0 | Repository instructions and initial implementation plan | Documents prepared; initial commit pending |
 | 1 | Initial Skills workflow and draft MCP tool contracts | Not started |
 | 2 | General-purpose asynchronous HTTP client based on `httpx` | Managed client wrappers and response/error contracts implemented; 21 tests pass |
-| 3 | Validated Garmin Connect API access | Not started |
+| 3 | Validated Garmin Connect API access | Standalone client and 26 GET endpoints implemented; 66 tests pass; live access confirmed by the user |
 | 4 | Data inventory and finalized MCP response contracts | Not started |
 | 5 | Local MCP server, Skills, and Codex integration | Not started |
 | 6 | Daily reports with manual and scheduled execution | Not started |

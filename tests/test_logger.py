@@ -40,7 +40,11 @@ class LoggerTests(unittest.TestCase):
                 Logger.ERROR("request failed", exc_info=True)
         self.assertEqual(stdout.getvalue(), "")
         self.assertNotIn("hidden debug", stderr.getvalue())
-        self.assertEqual(stderr.getvalue().count("INFO daybreak: synthetic message"), 1)
+        self.assertEqual(stderr.getvalue().count("INFO  synthetic message"), 1)
+        self.assertRegex(
+            stderr.getvalue().splitlines()[0],
+            r"^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}\.\d{3} INFO  synthetic message$",
+        )
         self.assertIn("ValueError: synthetic failure", stderr.getvalue())
 
     def test_all_outputs_disabled_are_silent(self):

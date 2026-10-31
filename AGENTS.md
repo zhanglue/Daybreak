@@ -15,6 +15,7 @@
 
 ## Scope and implementation
 
+- Use the existing Conda environment named `daybreak` for development and checks. `config/environment.yaml` and `config/requirements.txt` define its Python and dependency versions; do not create a separate virtual environment.
 - Treat Daybreak as a local MCP server. Define the initial Skills workflow and draft tool contracts before implementation; refine them after Garmin access and data discovery.
 - Codex must obtain Garmin data through Daybreak MCP tools, never through direct Garmin requests or access to Garmin credentials.
 - Skills define tool-use and analysis workflows; the MCP server owns Garmin access and data responses. A separate manual or scheduled runner starts Codex; the MCP server must not recursively launch Codex.

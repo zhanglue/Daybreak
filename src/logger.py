@@ -33,7 +33,8 @@ class Logger:
         backend = logging.Logger("daybreak", level=config.level)
         backend.propagate = False
         formatter = logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+            "%(asctime)s.%(msecs)03d %(levelname)-5s %(message)s",
+            datefmt="%Y.%m.%d %H:%M:%S",
         )
         try:
             if config.console.enabled:
